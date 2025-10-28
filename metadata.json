@@ -1,0 +1,7 @@
+{
+  "name": "Pixel AI",
+  "description": "An AI-powered chatbot application that leverages the Gemini API with Google Search grounding to provide real-time, informed responses. The interface is designed for a seamless and intuitive conversational experience.",
+  "requestFramePermissions": [
+    "microphone"
+  ]
+}
