@@ -1,4 +1,3 @@
-
 import { GoogleGenAI, LiveSession, LiveServerMessage, Modality, Blob } from "@google/genai";
 import { systemInstruction } from "../constants";
 
@@ -108,6 +107,7 @@ class LiveSessionManager {
                     inputAudioTranscription: {},
                     outputAudioTranscription: {},
                     systemInstruction: systemInstruction,
+                    tools: [{ googleSearch: {} }],
                 },
                 callbacks: {
                     onopen: () => {

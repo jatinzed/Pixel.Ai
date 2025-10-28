@@ -138,7 +138,6 @@ export const LiveView: React.FC<LiveViewProps> = ({ isOpen, onClose, audioLevel 
                     <div className="relative w-20 h-20">
                         <div className="absolute -inset-1.5 bg-purple-400 rounded-full blur-lg opacity-75 animate-pulse"></div>
                         <div className="relative w-full h-full bg-white rounded-full border-2 border-gray-200 flex items-center justify-center shadow-md">
-                            <img src="https://iili.io/K4tpjWP.png" alt="Stop live session" className="w-12 h-12" />
                         </div>
                     </div>
                 </button>
