@@ -1,3 +1,4 @@
+
 import React, { useRef, useEffect } from 'react';
 import type { Conversation } from '../types';
 import { Message } from './Message';
@@ -10,7 +11,6 @@ interface ChatViewProps {
   onSendMessage: (message: string) => void;
   isSidebarOpen: boolean;
   setIsSidebarOpen: (isOpen: boolean) => void;
-  isLiveSessionActive: boolean;
   onToggleLiveSession: () => void;
 }
 
@@ -20,7 +20,6 @@ export const ChatView: React.FC<ChatViewProps> = ({
   onSendMessage,
   isSidebarOpen,
   setIsSidebarOpen,
-  isLiveSessionActive,
   onToggleLiveSession,
 }) => {
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -87,7 +86,6 @@ export const ChatView: React.FC<ChatViewProps> = ({
         <ChatInput 
           onSendMessage={onSendMessage} 
           isLoading={isLoading} 
-          isLiveSessionActive={isLiveSessionActive}
           onToggleLiveSession={onToggleLiveSession}
         />
       </div>

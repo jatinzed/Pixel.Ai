@@ -2,9 +2,7 @@
 import { GoogleGenAI, LiveSession, LiveServerMessage, Modality, Blob } from "@google/genai";
 import { systemInstruction } from "../constants";
 
-if (!process.env.API_KEY) {
-    throw new Error("API_KEY environment variable is not set");
-}
+// For better security, especially in production, it's recommended to use environment variables.
 const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
 
 // --- Audio Encoding/Decoding Utilities ---
@@ -62,8 +60,9 @@ function createBlob(data: Float32Array): Blob {
 // --- Live Session Management ---
 
 interface LiveCallbacks {
-    onUserTranscription: (text: string) => void;
-    onModelTranscription: (text: string) => void;
+    onUserTranscription?: (text: string) => void;
+    onModelTranscription?: (text: string) => void;
+    onAudioLevel?: (level: number) => void;
     onSessionEnd: () => void;
     onError: (error: any) => void;
 }
@@ -120,6 +119,10 @@ class LiveSessionManager {
                         this.scriptProcessor.onaudioprocess = (audioProcessingEvent) => {
                             if (!this.sessionActive) return;
                             const inputData = audioProcessingEvent.inputBuffer.getChannelData(0);
+                            
+                            const rms = Math.sqrt(inputData.reduce((sum, val) => sum + val * val, 0) / inputData.length);
+                            this.callbacks?.onAudioLevel?.(rms);
+
                             const pcmBlob = createBlob(inputData);
                             this.sessionPromise?.then((session) => {
                                 if (this.sessionActive) {
@@ -135,11 +138,11 @@ class LiveSessionManager {
 
                         if (message.serverContent?.inputTranscription) {
                             currentInputTranscription += message.serverContent.inputTranscription.text;
-                            this.callbacks?.onUserTranscription(currentInputTranscription);
+                            this.callbacks?.onUserTranscription?.(currentInputTranscription);
                         }
                         if (message.serverContent?.outputTranscription) {
                             currentOutputTranscription += message.serverContent.outputTranscription.text;
-                            this.callbacks?.onModelTranscription(currentOutputTranscription);
+                            this.callbacks?.onModelTranscription?.(currentOutputTranscription);
                         }
                         
                         if (message.serverContent?.turnComplete) {

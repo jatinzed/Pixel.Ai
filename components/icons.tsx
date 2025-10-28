@@ -55,3 +55,17 @@ export const CloseIcon: React.FC<{ className?: string }> = ({ className }) => (
         <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
     </svg>
 );
+
+export const ChevronDownIcon: React.FC<{ className?: string }> = ({ className }) => (
+  <svg className={className} xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+    <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" />
+  </svg>
+);
+
+export const CompassIcon: React.FC<{ className?: string }> = ({ className }) => (
+  <svg className={className} viewBox="0 0 32 32" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <circle cx="16" cy="16" r="2" fill="currentColor" stroke="none" />
+    <path d="M16 4 V 12 M16 20 V 28 M4 16 H 12 M20 16 H 28" />
+    <path d="m 8.5,8.5 4.5,4.5 M 23.5,8.5 19,13 M 8.5,23.5 13,19 M 19,19 23.5,23.5" />
+  </svg>
+);

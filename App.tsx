@@ -9,6 +9,7 @@ import * as liveService from './services/live';
 import { CloseIcon, UsersIcon } from './components/icons';
 import PermissionModal from './components/PermissionModal';
 import { createRoom, roomExists, listenForMessages, sendMessage } from './services/firebase';
+import { LiveView } from './components/LiveView';
 
 // --- Room Modal Component ---
 interface RoomModalProps {
@@ -129,7 +130,7 @@ const App: React.FC = () => {
   const [isNotepadOpen, setIsNotepadOpen] = useState(false);
   const [notepadContent, setNotepadContent] = useState('');
   const [isLiveSessionActive, setIsLiveSessionActive] = useState(false);
-  const [liveMessageIds, setLiveMessageIds] = useState<{ user: string | null, model: string | null }>({ user: null, model: null });
+  const [audioLevel, setAudioLevel] = useState(0);
   const [isRoomModalOpen, setIsRoomModalOpen] = useState(false);
   const [isPermissionModalOpen, setIsPermissionModalOpen] = useState(false);
   const [permissionStatus, setPermissionStatus] = useState<'prompt' | 'denied' | 'granted'>('prompt');
@@ -326,51 +327,19 @@ const App: React.FC = () => {
   }, [activeConversation, conversations, activeConversationId, userId]);
   
   const startLiveSessionFlow = async () => {
-    const userMsgId = `live-user-${Date.now()}`;
-    const modelMsgId = `live-model-${Date.now()}`;
-    setLiveMessageIds({ user: userMsgId, model: modelMsgId });
-
-    setConversations(prev => prev.map(conv =>
-        conv.id === activeConversationId
-            ? { ...conv, messages: [
-                ...conv.messages, 
-                { id: userMsgId, role: 'user', text: 'Listening...' },
-                { id: modelMsgId, role: 'model', text: '' }
-              ] }
-            : conv
-    ));
-    
     setIsLiveSessionActive(true);
     
     try {
         await liveService.startLiveSession({
-            onUserTranscription: (transcript) => {
-                setConversations(prev => prev.map(conv => {
-                    if (conv.id === activeConversationId) {
-                        return { ...conv, messages: conv.messages.map(msg => 
-                            msg.id === userMsgId ? { ...msg, text: transcript || 'Listening...' } : msg
-                        )};
-                    }
-                    return conv;
-                }));
-            },
-            onModelTranscription: (transcript) => {
-                setConversations(prev => prev.map(conv => {
-                    if (conv.id === activeConversationId) {
-                        return { ...conv, messages: conv.messages.map(msg => 
-                            msg.id === modelMsgId ? { ...msg, text: transcript } : msg
-                        )};
-                    }
-                    return conv;
-                }));
-            },
+            onAudioLevel: setAudioLevel,
             onSessionEnd: () => {
                 setIsLiveSessionActive(false);
-                setLiveMessageIds({ user: null, model: null });
+                setAudioLevel(0);
             },
             onError: (error) => {
                 console.error('Live session error:', error);
                 setIsLiveSessionActive(false);
+                setAudioLevel(0);
                 
                 let shouldShowModal = false;
 
@@ -379,48 +348,18 @@ const App: React.FC = () => {
                     shouldShowModal = true;
                 }
 
-                const currentUserMsgId = liveMessageIds.user;
-                const currentModelMsgId = liveMessageIds.model;
-
-                setConversations(prev => prev.map(conv => {
-                    if (conv.id === activeConversationId) {
-                        const finalMessages = conv.messages.filter(msg => msg.id !== currentUserMsgId && msg.id !== currentModelMsgId);
-                        if (!shouldShowModal) {
-                           finalMessages.push({
-                                id: `error-${Date.now()}`,
-                                role: 'model',
-                                text: "Live session failed. Please try again.",
-                            });
-                        }
-                        return { ...conv, messages: finalMessages };
-                    }
-                    return conv;
-                }));
-
                 if (shouldShowModal) {
                     setIsPermissionModalOpen(true);
+                } else {
+                  alert("Live session failed. Please check permissions and try again.");
                 }
-                setLiveMessageIds({ user: null, model: null });
             }
         });
     } catch (error) {
          console.error('Failed to start live session:', error);
          setIsLiveSessionActive(false);
-         const currentUserMsgId = liveMessageIds.user;
-         const currentModelMsgId = liveMessageIds.model;
-         setConversations(prev => prev.map(conv => {
-            if (conv.id === activeConversationId) {
-                const finalMessages = conv.messages.filter(msg => msg.id !== currentUserMsgId && msg.id !== currentModelMsgId);
-                finalMessages.push({
-                    id: `error-${Date.now()}`,
-                    role: 'model',
-                    text: "An unexpected error occurred while starting the live session."
-                });
-                return { ...conv, messages: finalMessages };
-            }
-            return conv;
-        }));
-        setLiveMessageIds({ user: null, model: null });
+         setAudioLevel(0);
+         alert("An unexpected error occurred while starting the live session.");
     }
   }
 
@@ -428,7 +367,7 @@ const App: React.FC = () => {
     if (isLiveSessionActive) {
         liveService.stopLiveSession();
         setIsLiveSessionActive(false);
-        setLiveMessageIds({ user: null, model: null });
+        setAudioLevel(0);
     } else {
         if (!navigator.permissions?.query) {
             console.warn("Permissions API not supported, proceeding to request access directly.");
@@ -566,7 +505,6 @@ const App: React.FC = () => {
           onSendMessage={handleSendMessage}
           isSidebarOpen={isSidebarOpen}
           setIsSidebarOpen={setIsSidebarOpen}
-          isLiveSessionActive={isLiveSessionActive}
           onToggleLiveSession={handleToggleLiveSession}
         />
       )}
@@ -587,6 +525,11 @@ const App: React.FC = () => {
         onClose={() => setIsPermissionModalOpen(false)}
         onGrant={startLiveSessionFlow}
         status={permissionStatus === 'denied' ? 'denied' : 'prompt'}
+      />
+      <LiveView 
+        isOpen={isLiveSessionActive} 
+        onClose={handleToggleLiveSession} 
+        audioLevel={audioLevel}
       />
     </div>
   );
