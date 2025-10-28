@@ -8,7 +8,7 @@ import { streamChat } from './services/geminiService';
 import * as liveService from './services/live';
 import { CloseIcon, UsersIcon } from './components/icons';
 import PermissionModal from './components/PermissionModal';
-import { createRoom, roomExists, listenForMessages, sendMessage } from './services/firebase';
+import { createRoom, roomExists, listenForMessages, sendMessage, joinRoom, leaveRoom } from './services/firebase';
 import { LiveView } from './components/LiveView';
 
 // --- Room Modal Component ---
@@ -134,6 +134,7 @@ const App: React.FC = () => {
   const [isRoomModalOpen, setIsRoomModalOpen] = useState(false);
   const [isPermissionModalOpen, setIsPermissionModalOpen] = useState(false);
   const [permissionStatus, setPermissionStatus] = useState<'prompt' | 'denied' | 'granted'>('prompt');
+  const [isApiEnabled, setIsApiEnabled] = useState(true);
   
   // --- Helper Functions ---
   const isRoom = (id: string | null): boolean => id ? id.length === 5 && /^[A-Z0-9]+$/.test(id) : false;
@@ -241,28 +242,30 @@ const App: React.FC = () => {
 
         try {
             await sendMessage(activeConversationId, userMessage);
-            const currentHistory = conversations.find(c => c.id === activeConversationId)?.messages || [];
             
-            const stream = streamChat(currentHistory, messageText);
-            let modelText = '';
-            let modelSources: GroundingSource[] | undefined;
+            if (isApiEnabled) {
+                const currentHistory = conversations.find(c => c.id === activeConversationId)?.messages || [];
+                
+                const stream = streamChat(currentHistory, messageText);
+                let modelText = '';
+                let modelSources: GroundingSource[] | undefined;
 
-            for await (const chunk of stream) {
-                modelText += chunk.text;
-                if (chunk.sources) {
-                    modelSources = [...(modelSources || []), ...chunk.sources];
+                for await (const chunk of stream) {
+                    modelText += chunk.text;
+                    if (chunk.sources) {
+                        modelSources = [...(modelSources || []), ...chunk.sources];
+                    }
                 }
-            }
 
-            const modelMessage: Omit<Message, 'id'> = {
-                role: 'model',
-                text: modelText,
-                sources: modelSources,
-            };
-            await sendMessage(activeConversationId, modelMessage);
+                const modelMessage: Omit<Message, 'id'> = {
+                    role: 'model',
+                    text: modelText,
+                    sources: modelSources,
+                };
+                await sendMessage(activeConversationId, modelMessage);
+            }
         } catch (error) {
             console.error("Error sending message to room:", error);
-            // Optionally, you could send an error message to the room
         } finally {
             setIsLoading(false);
         }
@@ -272,6 +275,7 @@ const App: React.FC = () => {
             id: Date.now().toString(),
             role: 'user',
             text: messageText,
+            userId: userId,
         };
 
         const updatedConversations = conversations.map(conv =>
@@ -324,7 +328,7 @@ const App: React.FC = () => {
             setIsLoading(false);
         }
     }
-  }, [activeConversation, conversations, activeConversationId, userId]);
+  }, [activeConversation, conversations, activeConversationId, userId, isApiEnabled]);
   
   const startLiveSessionFlow = async () => {
     setIsLiveSessionActive(true);
@@ -409,40 +413,42 @@ const App: React.FC = () => {
     setActiveConversationId(id);
   };
 
-  const handleDeleteConversation = (id: string) => {
-    // Prevent deleting rooms from the UI
-    if (isRoom(id)) return;
-
-    // First, calculate the next state for the conversation list.
-    const nextConversationsList = conversations.filter(c => c.id !== id);
-
-    // Then, determine what the next active conversation and final list should be.
-    let finalConversations = nextConversationsList;
-    let nextActiveId = activeConversationId;
-
-    // Check if the deleted conversation was the active one.
-    if (activeConversationId === id) {
-        const remainingLocalChats = nextConversationsList.filter(c => !isRoom(c.id));
-        
-        if (remainingLocalChats.length === 0) {
-            // This was the last local chat. We must create a new one.
-            const newConversation = { id: Date.now().toString(), title: 'New Chat', messages: [] };
-            const remainingRooms = nextConversationsList.filter(isRoom);
-            finalConversations = [...remainingRooms, newConversation];
-            nextActiveId = newConversation.id;
-        } else {
-            // Other chats remain. Activate the first one in the list.
-            nextActiveId = nextConversationsList[0].id;
+  const handleDeleteConversation = async (id: string) => {
+    if (isRoom(id)) {
+        if (!userId) return;
+        try {
+            await leaveRoom(id, userId);
+        } catch (error) {
+            console.error("Failed to leave room:", error);
+            alert("Could not leave the room. Please try again.");
+            return;
         }
     }
     
-    // Finally, apply the new state.
+    const nextConversationsList = conversations.filter(c => c.id !== id);
+    let finalConversations = nextConversationsList;
+    let nextActiveId = activeConversationId;
+
+    if (activeConversationId === id) {
+        if (nextConversationsList.length > 0) {
+            nextActiveId = nextConversationsList[0].id;
+        } else {
+            const newConversation = { id: Date.now().toString(), title: 'New Chat', messages: [] };
+            finalConversations = [newConversation];
+            nextActiveId = newConversation.id;
+        }
+    }
+    
     setConversations(finalConversations);
     setActiveConversationId(nextActiveId);
   };
 
   const handleCreateRoom = async () => {
-    const roomCode = await createRoom();
+    if (!userId) {
+        alert("Cannot create room: User ID not found.");
+        throw new Error("User ID is not available");
+    }
+    const roomCode = await createRoom(userId);
     const newRoomConversation: Conversation = {
         id: roomCode,
         title: `Room: ${roomCode}`,
@@ -459,12 +465,18 @@ const App: React.FC = () => {
         alert("Invalid room code format. Must be 5 alphanumeric characters.");
         return;
     }
+    if (!userId) {
+        alert("Cannot join room: User ID not found.");
+        return;
+    }
 
     const exists = await roomExists(code);
     if (!exists) {
         alert("Room not found!");
         return;
     }
+
+    await joinRoom(code, userId);
 
     if (!conversations.some(c => c.id === code)) {
         const newRoomConversation: Conversation = {
@@ -506,6 +518,10 @@ const App: React.FC = () => {
           isSidebarOpen={isSidebarOpen}
           setIsSidebarOpen={setIsSidebarOpen}
           onToggleLiveSession={handleToggleLiveSession}
+          isRoom={isRoom(activeConversation.id)}
+          currentUserId={userId}
+          isApiEnabled={isApiEnabled}
+          setIsApiEnabled={setIsApiEnabled}
         />
       )}
       <Notepad 

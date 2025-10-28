@@ -1,3 +1,4 @@
+
 import React from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -7,10 +8,14 @@ import type { Message as MessageType } from '../types';
 
 interface MessageProps {
   message: MessageType;
+  isRoom: boolean;
+  currentUserId: string | null;
 }
 
-export const Message: React.FC<MessageProps> = ({ message }) => {
+export const Message: React.FC<MessageProps> = ({ message, isRoom, currentUserId }) => {
   const isModel = message.role === 'model';
+  const isCurrentUser = message.role === 'user' && (!isRoom || message.userId === currentUserId);
+  const isOtherUser = isRoom && message.role === 'user' && message.userId && message.userId !== currentUserId;
 
   if (isModel && !message.text) {
     return (
@@ -34,18 +39,20 @@ export const Message: React.FC<MessageProps> = ({ message }) => {
   }
 
   return (
-    <div className={`flex gap-5 ${!isModel ? 'justify-end' : 'justify-start'}`}>
-      {isModel && (
+    <div className={`flex gap-5 ${isCurrentUser ? 'justify-end' : 'justify-start'}`}>
+      {(isModel || isOtherUser) && (
         <img
-          src="https://iili.io/K4QGIa9.png"
-          alt="AI Avatar"
+          src={isModel ? "https://iili.io/K4QGIa9.png" : "https://iili.io/K6NVP8x.png"}
+          alt={isModel ? "AI Avatar" : "User Avatar"}
           className="w-10 h-10 rounded-full self-start flex-shrink-0"
         />
       )}
-      <div className={`max-w-2xl w-full ${!isModel ? 'flex flex-col items-end' : ''}`}>
+      <div className={`max-w-2xl w-full ${isCurrentUser ? 'flex flex-col items-end' : ''}`}>
         <div className={`prose prose-slate max-w-none p-4 rounded-3xl ${
             isModel 
-            ? 'bg-gray-50 text-gray-800' 
+            ? 'bg-gray-50 text-gray-800'
+            : isOtherUser
+            ? 'bg-gray-200 text-gray-800' 
             : 'bg-indigo-600 text-white prose-invert'
         }`}>
           <ReactMarkdown 
@@ -74,7 +81,7 @@ export const Message: React.FC<MessageProps> = ({ message }) => {
           </div>
         )}
       </div>
-      {!isModel && (
+      {isCurrentUser && (
         <img
           src="https://iili.io/K4ZYyKX.png"
           alt="User Avatar"

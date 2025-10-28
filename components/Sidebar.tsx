@@ -25,7 +25,10 @@ const ConversationItem: React.FC<{
 
   const handleDelete = (e: React.MouseEvent) => {
     e.stopPropagation(); // Stop the click from selecting the conversation
-    if (window.confirm("Are you sure you want to delete this chat session? This action cannot be undone.")) {
+    const message = isRoom
+        ? "Are you sure you want to leave this room? You will no longer receive messages."
+        : "Are you sure you want to delete this chat session? This action cannot be undone.";
+    if (window.confirm(message)) {
       onDelete(conversation.id);
     }
   };
@@ -44,15 +47,13 @@ const ConversationItem: React.FC<{
         <span className="truncate flex-1">{conversation.title}</span>
         {isActive && <div className="w-2 h-2 rounded-full bg-indigo-500"></div>}
       </button>
-      {!isRoom && (
-        <button
-          onClick={handleDelete}
-          aria-label="Delete chat session"
-          className="absolute right-2 top-1/2 -translate-y-1/2 p-2 rounded-full text-gray-400 opacity-0 group-hover:opacity-100 transition-all hover:bg-red-100 hover:text-red-500 focus:opacity-100"
-        >
-          <TrashIcon className="w-4 h-4" />
-        </button>
-      )}
+      <button
+        onClick={handleDelete}
+        aria-label={isRoom ? "Leave room" : "Delete chat session"}
+        className="absolute right-2 top-1/2 -translate-y-1/2 p-2 rounded-full text-gray-400 opacity-0 group-hover:opacity-100 transition-all hover:bg-red-100 hover:text-red-500 focus:opacity-100"
+      >
+        <TrashIcon className="w-4 h-4" />
+      </button>
     </div>
   );
 };

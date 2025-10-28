@@ -9,7 +9,7 @@ import {
   updateDoc,
   arrayUnion,
   serverTimestamp,
-  FieldValue
+  runTransaction
 } from "firebase/firestore";
 import type { Message } from '../types';
 
@@ -37,15 +37,52 @@ export function generateRoomCode(): string {
   return code;
 }
 
-export async function createRoom(): Promise<string> {
+export async function createRoom(creatorId: string): Promise<string> {
   const roomCode = generateRoomCode();
   const roomRef = doc(db, "rooms", roomCode);
   await setDoc(roomRef, {
     messages: [],
     createdAt: serverTimestamp(),
+    participants: [creatorId],
   });
   return roomCode;
 }
+
+export async function joinRoom(roomCode: string, userId: string): Promise<void> {
+  const roomRef = doc(db, "rooms", roomCode);
+  await updateDoc(roomRef, {
+    participants: arrayUnion(userId),
+  });
+}
+
+export async function leaveRoom(roomCode: string, userId: string): Promise<void> {
+    const roomRef = doc(db, "rooms", roomCode);
+    try {
+        await runTransaction(db, async (transaction) => {
+            const roomDoc = await transaction.get(roomRef);
+            if (!roomDoc.exists()) {
+                return; // Room already deleted.
+            }
+
+            const currentParticipants = roomDoc.data().participants || [];
+            if (!currentParticipants.includes(userId)) {
+                return; // User already left.
+            }
+
+            const newParticipants = currentParticipants.filter((id: string) => id !== userId);
+
+            if (newParticipants.length === 0) {
+                transaction.delete(roomRef); // Last user is leaving, delete the room.
+            } else {
+                transaction.update(roomRef, { participants: newParticipants });
+            }
+        });
+    } catch (error) {
+        console.error("Error leaving room: ", error);
+        throw error; // Rethrow to be handled by the UI
+    }
+}
+
 
 export async function roomExists(roomCode: string): Promise<boolean> {
   const roomRef = doc(db, "rooms", roomCode);
@@ -75,7 +112,7 @@ export async function sendMessage(roomCode: string, message: Omit<Message, 'id'>
   
   const messageForFirestore = {
       ...message,
-      timestamp: serverTimestamp(),
+      timestamp: new Date(),
   };
 
   await updateDoc(roomRef, {

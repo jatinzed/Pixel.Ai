@@ -12,6 +12,10 @@ interface ChatViewProps {
   isSidebarOpen: boolean;
   setIsSidebarOpen: (isOpen: boolean) => void;
   onToggleLiveSession: () => void;
+  isRoom: boolean;
+  currentUserId: string | null;
+  isApiEnabled: boolean;
+  setIsApiEnabled: (enabled: boolean) => void;
 }
 
 export const ChatView: React.FC<ChatViewProps> = ({
@@ -21,6 +25,10 @@ export const ChatView: React.FC<ChatViewProps> = ({
   isSidebarOpen,
   setIsSidebarOpen,
   onToggleLiveSession,
+  isRoom,
+  currentUserId,
+  isApiEnabled,
+  setIsApiEnabled
 }) => {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const messageListRef = useRef<HTMLDivElement>(null);
@@ -60,7 +68,27 @@ export const ChatView: React.FC<ChatViewProps> = ({
         >
           <MenuIcon className="w-6 h-6 text-gray-600" />
         </button>
-        <h2 className="text-lg font-semibold text-gray-800 truncate">{conversation.title}</h2>
+        <h2 className="flex-1 text-lg font-semibold text-gray-800 truncate">{conversation.title}</h2>
+        {isRoom && (
+            <div className="flex items-center gap-2 ml-4">
+                <span className="text-xs font-semibold text-gray-500 hidden sm:inline">Gemini API</span>
+                <button
+                    onClick={() => setIsApiEnabled(!isApiEnabled)}
+                    className={`relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 ${
+                        isApiEnabled ? 'bg-indigo-600' : 'bg-gray-200'
+                    }`}
+                    aria-pressed={isApiEnabled}
+                >
+                    <span className="sr-only">Toggle Gemini API</span>
+                    <span
+                        aria-hidden="true"
+                        className={`inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
+                            isApiEnabled ? 'translate-x-5' : 'translate-x-0'
+                        }`}
+                    />
+                </button>
+            </div>
+        )}
       </header>
       <div className="flex-1 overflow-y-auto p-6 min-h-0">
         {conversation.messages.length === 0 ? (
@@ -76,7 +104,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
         ) : (
           <div ref={messageListRef} className="space-y-8">
             {conversation.messages.map((msg) => (
-              <Message key={msg.id} message={msg} />
+              <Message key={msg.id} message={msg} isRoom={isRoom} currentUserId={currentUserId} />
             ))}
             <div ref={messagesEndRef} />
           </div>
