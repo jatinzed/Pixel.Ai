@@ -13,15 +13,14 @@ import {
 } from "firebase/firestore";
 import type { Message } from '../types';
 
-// WARNING: Replace this with your own Firebase configuration.
-// You can get this from your Firebase project settings (Settings > General).
+// Your web app's Firebase configuration
 const firebaseConfig = {
-  apiKey: "YOUR_API_KEY",
-  authDomain: "YOUR_AUTH_DOMAIN",
-  projectId: "YOUR_PROJECT_ID",
-  storageBucket: "YOUR_STORAGE_BUCKET",
-  messagingSenderId: "YOUR_MESSAGING_SENDER_ID",
-  appId: "YOUR_APP_ID",
+  apiKey: "AIzaSyC2okxLCbWu8aRVxHzzzf3awh36B25UKPU",
+  authDomain: "pixel-ai-10c0e.firebaseapp.com",
+  projectId: "pixel-ai-10c0e",
+  storageBucket: "pixel-ai-10c0e.firebasestorage.app",
+  messagingSenderId: "864827888165",
+  appId: "1:864827888165:web:836e121bdbb8e5778425cc",
 };
 
 const app = initializeApp(firebaseConfig);
