@@ -29,9 +29,15 @@ function getChat(history: Message[]): Chat {
 
 
 export async function* streamChat(
-    history: Message[],
-    newMessage: string
+    messages: Message[],
 ): AsyncGenerator<{ text: string, sources?: GroundingSource[] }> {
+
+    if (messages.length === 0) {
+        return;
+    }
+
+    const history = messages.slice(0, -1);
+    const newMessage = messages[messages.length - 1].text;
 
     const chat = getChat(history);
 

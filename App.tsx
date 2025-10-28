@@ -245,8 +245,15 @@ const App: React.FC = () => {
             
             if (isApiEnabled) {
                 const currentHistory = conversations.find(c => c.id === activeConversationId)?.messages || [];
+                const userMessageForApi: Message = {
+                   id: 'temp-id', // This ID is only for the API call context, it's not saved.
+                   role: 'user',
+                   text: messageText,
+                   userId: userId,
+                };
+                const updatedMessagesForApi = [...currentHistory, userMessageForApi];
                 
-                const stream = streamChat(currentHistory, messageText);
+                const stream = streamChat(updatedMessagesForApi);
                 let modelText = '';
                 let modelSources: GroundingSource[] | undefined;
 
@@ -257,12 +264,14 @@ const App: React.FC = () => {
                     }
                 }
 
-                const modelMessage: Omit<Message, 'id'> = {
-                    role: 'model',
-                    text: modelText,
-                    sources: modelSources,
-                };
-                await sendMessage(activeConversationId, modelMessage);
+                if (modelText) {
+                    const modelMessage: Omit<Message, 'id'> = {
+                        role: 'model',
+                        text: modelText,
+                        sources: modelSources,
+                    };
+                    await sendMessage(activeConversationId, modelMessage);
+                }
             }
         } catch (error) {
             console.error("Error sending message to room:", error);
@@ -287,6 +296,7 @@ const App: React.FC = () => {
         setIsLoading(true);
         
         const modelMessageId = (Date.now() + 1).toString();
+        const updatedMessages = updatedConversations.find(c => c.id === activeConversationId)?.messages || [];
         
         setConversations(prev => prev.map(conv =>
             conv.id === activeConversationId
@@ -295,7 +305,7 @@ const App: React.FC = () => {
         ));
 
         try {
-            const stream = streamChat(activeConversation?.messages || [], messageText);
+            const stream = streamChat(updatedMessages);
             for await (const chunk of stream) {
                 setConversations(prev => prev.map(conv => {
                     if (conv.id === activeConversationId) {
@@ -328,7 +338,7 @@ const App: React.FC = () => {
             setIsLoading(false);
         }
     }
-  }, [activeConversation, conversations, activeConversationId, userId, isApiEnabled]);
+  }, [conversations, activeConversationId, userId, isApiEnabled]);
   
   const startLiveSessionFlow = async () => {
     setIsLiveSessionActive(true);

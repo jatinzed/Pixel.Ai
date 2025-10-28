@@ -1,4 +1,3 @@
-
 import { initializeApp } from "firebase/app";
 import { 
   getFirestore, 
@@ -11,7 +10,7 @@ import {
   serverTimestamp,
   runTransaction
 } from "firebase/firestore";
-import type { Message } from '../types';
+import type { Message, GroundingSource } from '../types';
 
 // Your web app's Firebase configuration
 const firebaseConfig = {
@@ -110,10 +109,28 @@ export function listenForMessages(roomCode: string, callback: (messages: Message
 export async function sendMessage(roomCode: string, message: Omit<Message, 'id'>) {
   const roomRef = doc(db, "rooms", roomCode);
   
-  const messageForFirestore = {
-      ...message,
+  // Explicitly construct the object for Firestore to avoid undefined values.
+  const messageForFirestore: {
+    role: 'user' | 'model';
+    text: string;
+    timestamp: Date;
+    userId?: string;
+    sources?: GroundingSource[];
+  } = {
+      role: message.role,
+      text: message.text,
       timestamp: new Date(),
   };
+
+  if (message.userId) {
+      messageForFirestore.userId = message.userId;
+  }
+  
+  // Firestore supports empty arrays, but not undefined.
+  // This check correctly skips adding the 'sources' key if it's undefined.
+  if (message.sources) {
+      messageForFirestore.sources = message.sources;
+  }
 
   await updateDoc(roomRef, {
     messages: arrayUnion(messageForFirestore),

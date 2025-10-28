@@ -71,7 +71,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
         <h2 className="flex-1 text-lg font-semibold text-gray-800 truncate">{conversation.title}</h2>
         {isRoom && (
             <div className="flex items-center gap-2 ml-4">
-                <span className="text-xs font-semibold text-gray-500 hidden sm:inline">Gemini API</span>
+                <span className="text-xs font-semibold text-gray-500 hidden sm:inline">Pixel Ai</span>
                 <button
                     onClick={() => setIsApiEnabled(!isApiEnabled)}
                     className={`relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 ${
@@ -79,7 +79,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
                     }`}
                     aria-pressed={isApiEnabled}
                 >
-                    <span className="sr-only">Toggle Gemini API</span>
+                    <span className="sr-only">Toggle Pixel Ai</span>
                     <span
                         aria-hidden="true"
                         className={`inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
