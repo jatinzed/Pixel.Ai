@@ -1,4 +1,3 @@
-
 import { GoogleGenAI, Chat, GenerateContentResponse, Content, FunctionDeclaration, Type } from "@google/genai";
 import type { Message, GroundingSource } from '../types';
 import { systemInstruction } from "../constants";
@@ -63,7 +62,7 @@ function getChat(history: Message[]): Chat {
         model: MODEL_NAME,
         config: {
             systemInstruction: systemInstruction,
-            tools: [{ functionDeclarations: [sendMessageToTelegramTool, setReminderTool] }],
+            tools: [{ googleSearch: {} }, { functionDeclarations: [sendMessageToTelegramTool, setReminderTool] }],
         },
         history: buildHistory(history)
     });
