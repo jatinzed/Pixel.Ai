@@ -10,6 +10,7 @@ import { CloseIcon, UsersIcon } from './components/icons';
 import PermissionModal from './components/PermissionModal';
 import { createRoom, roomExists, listenForMessages, sendMessage, joinRoom, leaveRoom } from './services/firebase';
 import { LiveView } from './components/LiveView';
+import SettingsModal from './components/SettingsModal';
 
 // --- Room Modal Component ---
 interface RoomModalProps {
@@ -132,6 +133,7 @@ const App: React.FC = () => {
   const [isLiveSessionActive, setIsLiveSessionActive] = useState(false);
   const [audioLevel, setAudioLevel] = useState(0);
   const [isRoomModalOpen, setIsRoomModalOpen] = useState(false);
+  const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
   const [isPermissionModalOpen, setIsPermissionModalOpen] = useState(false);
   const [permissionStatus, setPermissionStatus] = useState<'prompt' | 'denied' | 'granted'>('prompt');
   const [isApiEnabled, setIsApiEnabled] = useState(true);
@@ -253,7 +255,7 @@ const App: React.FC = () => {
                 };
                 const updatedMessagesForApi = [...currentHistory, userMessageForApi];
                 
-                const stream = streamChat(updatedMessagesForApi);
+                const stream = streamChat(updatedMessagesForApi, userId);
                 let modelText = '';
                 let modelSources: GroundingSource[] | undefined;
 
@@ -305,7 +307,7 @@ const App: React.FC = () => {
         ));
 
         try {
-            const stream = streamChat(updatedMessages);
+            const stream = streamChat(updatedMessages, userId);
             for await (const chunk of stream) {
                 setConversations(prev => prev.map(conv => {
                     if (conv.id === activeConversationId) {
@@ -341,6 +343,12 @@ const App: React.FC = () => {
   }, [conversations, activeConversationId, userId, isApiEnabled]);
   
   const startLiveSessionFlow = async () => {
+    if (!userId) {
+        console.error("Cannot start live session without a user ID.");
+        alert("An unexpected error occurred. Please refresh the page.");
+        return;
+    }
+
     setIsLiveSessionActive(true);
     
     try {
@@ -368,7 +376,7 @@ const App: React.FC = () => {
                   alert("Live session failed. Please check permissions and try again.");
                 }
             }
-        });
+        }, userId);
     } catch (error) {
          console.error('Failed to start live session:', error);
          setIsLiveSessionActive(false);
@@ -519,6 +527,7 @@ const App: React.FC = () => {
         setIsOpen={setIsSidebarOpen}
         onNotepadOpen={() => setIsNotepadOpen(true)}
         onRoomModalOpen={() => setIsRoomModalOpen(true)}
+        onSettingsModalOpen={() => setIsSettingsModalOpen(true)}
       />
       {activeConversation && (
         <ChatView
@@ -551,6 +560,11 @@ const App: React.FC = () => {
         onClose={() => setIsPermissionModalOpen(false)}
         onGrant={startLiveSessionFlow}
         status={permissionStatus === 'denied' ? 'denied' : 'prompt'}
+      />
+       <SettingsModal
+        isOpen={isSettingsModalOpen}
+        onClose={() => setIsSettingsModalOpen(false)}
+        userId={userId}
       />
       <LiveView 
         isOpen={isLiveSessionActive} 

@@ -1,7 +1,7 @@
 
 import React from 'react';
 import type { Conversation } from '../types';
-import { PlusIcon, ChatBubbleIcon, TrashIcon } from './icons';
+import { PlusIcon, ChatBubbleIcon, TrashIcon, SettingsIcon } from './icons';
 
 interface SidebarProps {
   conversations: Conversation[];
@@ -13,6 +13,7 @@ interface SidebarProps {
   setIsOpen: (isOpen: boolean) => void;
   onNotepadOpen: () => void;
   onRoomModalOpen: () => void;
+  onSettingsModalOpen: () => void;
 }
 
 const ConversationItem: React.FC<{
@@ -68,6 +69,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   setIsOpen,
   onNotepadOpen,
   onRoomModalOpen,
+  onSettingsModalOpen,
 }) => {
   return (
     <aside className={`
@@ -123,11 +125,18 @@ export const Sidebar: React.FC<SidebarProps> = ({
             </div>
 
             <div className="flex-shrink-0 pt-4 border-t border-gray-200">
-                <div className="space-y-2">
-                    <div className="flex items-center gap-3 px-4 py-2.5 rounded-full bg-gray-50">
+                <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-3 px-4 py-2.5 rounded-full bg-gray-50 flex-grow">
                         <span className="text-gray-600 text-3xl leading-none">●</span>
                         <span className="text-sm font-semibold text-gray-800">Pixel Squad</span>
                     </div>
+                    <button 
+                        onClick={onSettingsModalOpen}
+                        className="flex-shrink-0 p-3 bg-gray-100 rounded-full hover:bg-gray-200 transition-colors duration-200"
+                        aria-label="Open Settings"
+                    >
+                        <SettingsIcon className="w-5 h-5 text-gray-600" />
+                    </button>
                 </div>
             </div>
         </div>

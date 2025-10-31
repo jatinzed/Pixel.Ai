@@ -1,5 +1,9 @@
+
 import { GoogleGenAI, LiveSession, LiveServerMessage, Modality, Blob } from "@google/genai";
 import { systemInstruction } from "../constants";
+import { sendMessageToTelegram } from "./telegramService";
+import { sendMessageToTelegramTool, setReminderTool } from "./geminiService";
+import { scheduleReminder } from "./reminderService";
 
 // For better security, especially in production, it's recommended to use environment variables.
 const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
@@ -76,8 +80,9 @@ class LiveSessionManager {
     private sources = new Set<AudioBufferSourceNode>();
     private sessionActive = false;
     private callbacks: LiveCallbacks | null = null;
+    private appUserId: string | null = null;
 
-    public async start(callbacks: LiveCallbacks) {
+    public async start(callbacks: LiveCallbacks, appUserId: string | null) {
         if (this.sessionActive) {
             console.log("Session already active.");
             return;
@@ -85,6 +90,7 @@ class LiveSessionManager {
 
         this.sessionActive = true;
         this.callbacks = callbacks;
+        this.appUserId = appUserId;
 
         try {
             this.stream = await navigator.mediaDevices.getUserMedia({ audio: true });
@@ -107,7 +113,7 @@ class LiveSessionManager {
                     inputAudioTranscription: {},
                     outputAudioTranscription: {},
                     systemInstruction: systemInstruction,
-                    tools: [{ googleSearch: {} }],
+                    tools: [{ googleSearch: {} }, { functionDeclarations: [sendMessageToTelegramTool, setReminderTool] }],
                 },
                 callbacks: {
                     onopen: () => {
@@ -135,6 +141,52 @@ class LiveSessionManager {
                     },
                     onmessage: async (message: LiveServerMessage) => {
                         if (!this.sessionActive) return;
+
+                        if (message.toolCall) {
+                            for (const fc of message.toolCall.functionCalls) {
+                                if (fc.name === 'sendMessageToTelegram') {
+                                    const { message: textMessage } = fc.args;
+                                    let { userId: targetUserId } = fc.args;
+                                    let resultMessage: string;
+
+                                    if (!targetUserId && this.appUserId) {
+                                        targetUserId = localStorage.getItem(`pixel-ai-telegram-id-${this.appUserId}`);
+                                    }
+
+                                    if (targetUserId) {
+                                        const result = await sendMessageToTelegram(targetUserId, textMessage);
+                                        resultMessage = result.message;
+                                    } else {
+                                        resultMessage = "Failed: Telegram User ID not configured.";
+                                    }
+                                    
+                                    this.sessionPromise?.then((session) => {
+                                        if (this.sessionActive) {
+                                            session.sendToolResponse({ functionResponses: { id: fc.id, name: fc.name, response: { result: resultMessage } } });
+                                        }
+                                    });
+
+                                } else if (fc.name === 'setReminder') {
+                                    let resultMessage: string;
+                                    if (this.appUserId) {
+                                        const { message, delayInSeconds } = fc.args;
+                                        if (typeof message === 'string' && typeof delayInSeconds === 'number' && delayInSeconds > 0) {
+                                            await scheduleReminder(this.appUserId, message, delayInSeconds);
+                                            resultMessage = `Reminder set for ${message}`;
+                                        } else {
+                                            resultMessage = 'Could not set reminder due to invalid parameters.';
+                                        }
+                                    } else {
+                                        resultMessage = 'Could not set reminder due to missing user context.';
+                                    }
+                                    this.sessionPromise?.then((session) => {
+                                        if (this.sessionActive) {
+                                            session.sendToolResponse({ functionResponses: { id: fc.id, name: fc.name, response: { result: resultMessage } } });
+                                        }
+                                    });
+                                }
+                            }
+                        }
 
                         if (message.serverContent?.inputTranscription) {
                             currentInputTranscription += message.serverContent.inputTranscription.text;
@@ -218,13 +270,13 @@ class LiveSessionManager {
 
 let currentSession: LiveSessionManager | null = null;
 
-export function startLiveSession(callbacks: LiveCallbacks) {
+export function startLiveSession(callbacks: LiveCallbacks, appUserId: string | null) {
     if (currentSession) {
         console.warn("startLiveSession called while a session is already active.");
         return;
     }
     currentSession = new LiveSessionManager();
-    currentSession.start(callbacks);
+    currentSession.start(callbacks, appUserId);
 }
 
 export function stopLiveSession() {
