@@ -1,3 +1,4 @@
+
 import { GoogleGenAI, LiveSession, LiveServerMessage, Modality, Blob } from "@google/genai";
 import { systemInstruction } from "../constants";
 import { sendMessageToTelegram } from "./telegramService";
@@ -112,10 +113,10 @@ class LiveSessionManager {
                     inputAudioTranscription: {},
                     outputAudioTranscription: {},
                     systemInstruction: systemInstruction,
-                    tools: [{ 
-                        googleSearch: {}, 
-                        functionDeclarations: [sendMessageToTelegramTool, setReminderTool] 
-                    }],
+                    tools: [
+                        { googleSearch: {} },
+                        { functionDeclarations: [sendMessageToTelegramTool, setReminderTool] }
+                    ],
                 },
                 callbacks: {
                     onopen: () => {
