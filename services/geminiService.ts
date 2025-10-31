@@ -62,7 +62,10 @@ function getChat(history: Message[]): Chat {
         model: MODEL_NAME,
         config: {
             systemInstruction: systemInstruction,
-            tools: [{ googleSearch: {} }, { functionDeclarations: [sendMessageToTelegramTool, setReminderTool] }],
+            tools: [{ 
+                googleSearch: {}, 
+                functionDeclarations: [sendMessageToTelegramTool, setReminderTool] 
+            }],
         },
         history: buildHistory(history)
     });
