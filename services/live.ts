@@ -113,7 +113,7 @@ class LiveSessionManager {
                     inputAudioTranscription: {},
                     outputAudioTranscription: {},
                     systemInstruction: systemInstruction,
-                    tools: [{ googleSearch: {} }, { functionDeclarations: [sendMessageToTelegramTool, setReminderTool] }],
+                    tools: [{ functionDeclarations: [sendMessageToTelegramTool, setReminderTool] }],
                 },
                 callbacks: {
                     onopen: () => {
