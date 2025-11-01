@@ -1,8 +1,5 @@
-// IMPORTANT: Replace with your actual Telegram Bot Token.
-// For security, it's best to load this from an environment variable.
-// FIX: Widened type to `string` to allow comparison with a placeholder value, resolving a TypeScript error.
-const BOT_TOKEN: string = "8202368419:AAHthdn8TVY22ing-VaSkOZSfr2M8YlrNrQ";
-const TELEGRAM_API_BASE = `https://api.telegram.org/bot${BOT_TOKEN}`;
+// The Telegram Bot Token is loaded from an environment variable for security.
+const BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
 
 interface TelegramResponse {
     ok: boolean;
@@ -19,7 +16,13 @@ export async function sendMessageToTelegram(
     userId: string,
     message: string
 ): Promise<{ ok: boolean; message: string }> {
-    const url = `${TELEGRAM_API_BASE}/sendMessage`;
+    if (!BOT_TOKEN) {
+        const errorMessage = "Telegram integration is not configured. The bot token is missing.";
+        console.error(errorMessage);
+        return { ok: false, message: `❌ ${errorMessage}` };
+    }
+
+    const url = `https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`;
     const body = {
         chat_id: userId,
         text: message,
