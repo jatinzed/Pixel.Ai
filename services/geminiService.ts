@@ -1,14 +1,10 @@
 
-import { GoogleGenAI, Chat, GenerateContentResponse, Content, FunctionDeclaration, Type } from "@google/genai";
+import { FunctionDeclaration, Type } from "@google/genai";
 import type { Message, GroundingSource } from '../types';
 import { systemInstruction } from "../constants";
 import { sendMessageToTelegram } from "./telegramService";
 import { scheduleReminder } from "./reminderService";
 
-// For better security, especially in production, it's recommended to use environment variables.
-const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-
-const MODEL_NAME = 'gemini-2.5-flash';
 
 // --- Function Declarations for Tools ---
 
@@ -50,106 +46,121 @@ export const setReminderTool: FunctionDeclaration = {
   },
 };
 
-
-function buildHistory(messages: Message[]): Content[] {
-    return messages.map(msg => ({
-        role: msg.role,
-        parts: [{ text: msg.text }]
-    }));
-}
-
-function getChat(history: Message[]): Chat {
-    const chat = ai.chats.create({
-        model: MODEL_NAME,
-        config: {
-            systemInstruction: systemInstruction,
-            tools: [
-                { googleSearch: {} },
-                { functionDeclarations: [sendMessageToTelegramTool, setReminderTool] }
-            ],
-        },
-        history: buildHistory(history)
-    });
-    return chat;
-}
-
-
 export async function* streamChat(
     messages: Message[],
     appUserId: string | null,
 ): AsyncGenerator<{ text: string, sources?: GroundingSource[] }> {
-
     if (messages.length === 0) {
         return;
     }
 
-    const history = messages.slice(0, -1);
-    const newMessage = messages[messages.length - 1].text;
-
-    const chat = getChat(history);
-
     try {
-        const result = await chat.sendMessageStream({ 
-            message: newMessage
+        const response = await fetch('/api/gemini', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ messages }),
         });
 
+        if (!response.ok) {
+            const errorText = await response.text();
+            throw new Error(`API error: ${response.status} ${errorText}`);
+        }
+        
+        if (!response.body) {
+            return;
+        }
+
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder();
+        let buffer = '';
         const seenUris = new Set<string>();
 
-        for await (const chunk of result) {
-             // First, yield the text and sources from the current chunk
-            let sources: GroundingSource[] | undefined;
-            const groundingMetadata = chunk.candidates?.[0]?.groundingMetadata;
-            if (groundingMetadata?.groundingChunks) {
-                const newSources: GroundingSource[] = [];
-                for (const groundingChunk of groundingMetadata.groundingChunks) {
-                    if (groundingChunk.web) {
-                        const { uri, title } = groundingChunk.web;
-                        if (uri && !seenUris.has(uri)) {
-                            newSources.push({ uri, title: title || new URL(uri).hostname });
-                            seenUris.add(uri);
-                        }
-                    }
-                }
-                if (newSources.length > 0) {
-                    sources = newSources;
-                }
+        while (true) {
+            const { done, value } = await reader.read();
+            if (done) {
+                break;
             }
-            yield { text: chunk.text ?? '', sources };
 
-            // Then, handle function calls if they exist
-            if (chunk.functionCalls) {
-                for (const fc of chunk.functionCalls) {
-                    if (fc.name === 'sendMessageToTelegram') {
-                        const { message } = fc.args;
-                        let { userId: targetUserId } = fc.args;
+            buffer += decoder.decode(value, { stream: true });
+            
+            const lines = buffer.split('\n');
+            buffer = lines.pop() || '';
+
+            for (const line of lines) {
+                if (line.startsWith('data: ')) {
+                    const jsonString = line.substring(6).trim();
+                    if (!jsonString) continue;
+
+                    try {
+                        const chunk = JSON.parse(jsonString);
                         
-                        if (!targetUserId && appUserId) {
-                             targetUserId = localStorage.getItem(`pixel-ai-telegram-id-${appUserId}`);
-                        }
-
-                        if (targetUserId) {
-                             const tgResult = await sendMessageToTelegram(targetUserId, message);
-                             yield { text: `\n\n---\n${tgResult.message}` };
-                        } else {
-                            yield { text: `\n\n---\nI can't send the message because no Telegram User ID has been configured. You can set one in the settings menu.` };
-                        }
-                    } else if (fc.name === 'setReminder') {
-                        if (appUserId) {
-                            const { message, delayInSeconds } = fc.args;
-                            if (typeof message === 'string' && typeof delayInSeconds === 'number' && delayInSeconds > 0) {
-                                await scheduleReminder(appUserId, message, delayInSeconds);
-                                yield { text: `\n\n---\n✅ Reminder set: "${message}"` };
-                            } else {
-                                yield { text: `\n\n---\nCould not set reminder due to invalid parameters.`};
+                        // Handle sources from grounding
+                        let sources: GroundingSource[] | undefined;
+                        const groundingMetadata = chunk.candidates?.[0]?.groundingMetadata;
+                        if (groundingMetadata?.groundingChunks) {
+                            const newSources: GroundingSource[] = [];
+                            for (const groundingChunk of groundingMetadata.groundingChunks) {
+                                if (groundingChunk.web) {
+                                    const { uri, title } = groundingChunk.web;
+                                    if (uri && !seenUris.has(uri)) {
+                                        newSources.push({ uri, title: title || new URL(uri).hostname });
+                                        seenUris.add(uri);
+                                    }
+                                }
+                            }
+                            if (newSources.length > 0) {
+                                sources = newSources;
                             }
                         }
+
+                        // Process parts (text or function calls)
+                        const parts = chunk.candidates?.[0]?.content?.parts || [];
+                        for (const part of parts) {
+                            if (part.text) {
+                                yield { text: part.text, sources };
+                                // Sources are yielded only with the first text part of a chunk
+                                sources = undefined; 
+                            }
+                            
+                            if (part.functionCall) {
+                                const fc = part.functionCall;
+                                if (fc.name === 'sendMessageToTelegram') {
+                                    const { message } = fc.args;
+                                    let { userId: targetUserId } = fc.args;
+                                    
+                                    if (!targetUserId && appUserId) {
+                                         targetUserId = localStorage.getItem(`pixel-ai-telegram-id-${appUserId}`);
+                                    }
+
+                                    if (targetUserId) {
+                                         const tgResult = await sendMessageToTelegram(targetUserId, message);
+                                         yield { text: `\n\n---\n${tgResult.message}` };
+                                    } else {
+                                        yield { text: `\n\n---\nI can't send the message because no Telegram User ID has been configured. You can set one in the settings menu.` };
+                                    }
+                                } else if (fc.name === 'setReminder') {
+                                    if (appUserId) {
+                                        const { message, delayInSeconds } = fc.args;
+                                        if (typeof message === 'string' && typeof delayInSeconds === 'number' && delayInSeconds > 0) {
+                                            await scheduleReminder(appUserId, message, delayInSeconds);
+                                            yield { text: `\n\n---\n✅ Reminder set: "${message}"` };
+                                        } else {
+                                            yield { text: `\n\n---\nCould not set reminder due to invalid parameters.`};
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    } catch (e) {
+                        console.error('Error parsing stream chunk:', e, 'Chunk:', jsonString);
                     }
                 }
             }
         }
-
     } catch (error) {
-        console.error("Gemini API error:", error);
-        yield { text: "An error occurred while communicating with the AI. Please check the console for details." };
+        console.error("Chat streaming error:", error);
+        yield { text: "An error occurred while communicating with the AI. Please check your network connection or the browser console for details." };
     }
 }
